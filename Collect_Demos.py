@@ -5,6 +5,7 @@ import torch
 from scipy.spatial.transform import Rotation as R
 import time
 import os
+import threading
 
 class InputDeviceParser:
 	def __init__(self, deadzone = 0.1, position_scale=.5, rotation_scale=.1):
@@ -48,11 +49,22 @@ def run_data_collection(env,device_parser):
 		demo_data.append((obs, action, reward, next_obs, done))
 		obs = next_obs
 		step_count += 1
-		print(f"Step {step_count}: Action taken: {action}, Reward: {reward}, Done: {done}")
+		print(f"Step {step_count}: Action taken: {action}, Reward: {reward}, Done: {done}, Pose: {obs['pose']}")
 	print("Episode complete.")
 	return demo_data
 
-def collect_demo_dataset(save_location, num_episodes=5, overwrite = False):
+def save_data(episode_data, episode_number, save_location):
+	unzipped_data = list(zip(*episode_data))
+	observations, actions, rewards, next_observations, dones = unzipped_data
+	np.savez_compressed(os.path.join(save_location, f"demo_{episode_number}.npz"), observations=observations, actions=actions, rewards=rewards, next_observations=next_observations, dones=dones)
+	print(f"Episode {episode_number} data saved.")
+
+def save_data_threaded(episode_data, episode_number, save_location):
+	thread = threading.Thread(target=save_data, args=(episode_data, episode_number, save_location))
+	thread.start()
+	return thread
+
+def collect_demo_dataset(save_location, num_episodes=5, overwrite = False, episode_timeout=200, reset_wait=0, reset_gui = False):
 	os.makedirs(os.path.dirname(save_location), exist_ok=True)
 
 	start_episode = 0
@@ -63,25 +75,33 @@ def collect_demo_dataset(save_location, num_episodes=5, overwrite = False):
 			existing_episodes = [int(f.split('_')[-1].split('.')[0]) for f in existing_files]
 			start_episode = max(existing_episodes) + 1
 			print(f"Resuming from episode {start_episode}")
-	env = Franka_Gym_Environment.FrankaGymEnvironment(load_vision_node=True, use_gui=True)
+	env = Franka_Gym_Environment.FrankaGymEnvironment(load_vision_node=True, use_gui=True, episode_timeout=episode_timeout, reset_wait=reset_wait, wait_for_gui_reset=reset_gui)
 	device_parser = InputDeviceParser()
 	try:
+		saving = False
 		for episode in range(start_episode, num_episodes):
 			print(f"Starting episode {episode+1}/{num_episodes}")
 			episode_data = run_data_collection(env, device_parser)
 			# Save episode data
 			unzipped_data = list(zip(*episode_data))
 			observations, actions, rewards, next_observations, dones = unzipped_data
-
-			np.savez_compressed(os.path.join(save_location, f"demo_{episode}.npz"), observations=observations, actions=actions, rewards=rewards, next_observations=next_observations, dones=dones)
-			print(f"Episode {episode} data saved.")
+			if not reset_gui:
+				env.reset()
+			if saving:
+				save_thread.join()
+				saving = False
+			save_thread = save_data_threaded(episode_data, episode, save_location)
+			saving = True
+			# np.savez_compressed(os.path.join(save_location, f"demo_{episode}.npz"), observations=observations, actions=actions, rewards=rewards, next_observations=next_observations, dones=dones)
+		if saving:
+			save_thread.join()
 	except KeyboardInterrupt:
 		print("Data collection interrupted by user.")
 	finally:
 		env.close()
 
 def main():
-	collect_demo_dataset(save_location="./open_microwave_data/", num_episodes=1, overwrite=True)
+	collect_demo_dataset(save_location="./Test/", num_episodes=21, overwrite=False, episode_timeout=200, reset_wait=2, reset_gui=True)
 
 if __name__ == "__main__":
 	main()

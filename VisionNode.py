@@ -138,9 +138,7 @@ class VisionNode:
 
 		print("reset start")
 		ctx = rs.context()
-		print(ctx)
 		devices = ctx.query_devices()
-		print(devices)
 		for dev in devices:
 			print("Resetting device: {}".format(dev.get_info(rs.camera_info.name)))
 			dev.hardware_reset()
@@ -433,23 +431,14 @@ class VisionNode:
 		points, colors = self.get_mask_pointcloud(mask,cam)
 		return(points, colors)
 
-def create_vision_node(display_camera = True,load_owl = False):
+def create_vision_node(display_camera = False,load_owl = False):
 	camera_list = ['152122075524','827312070621']
+	# camera_list = ['242522072314']
+	# camera_list = ['152122075524','947522071685']
+
 	# camera_list = ['746612070227','827312072396']
 	# camera_list = ['827312070621','827312072396']
 	# camera_list = ['152122075524','827312070621','827312072396']
-
-	extrinsics_3 = np.array([69.54,-38.72,87.53,0.,0.,np.pi/2])
-	# extrinsics_3[:3,3] = np.array([71.,-15.,30.])
-	extrinsics_3 = vec2SE3(extrinsics_3)
-
-
-	extrinsics = {}
-	extrinsics['746612070227'] = extrinsics_3
-	extrinsics['827312070621'] = extrinsics_3
-	extrinsics['152122075524'] = extrinsics_3
-	extrinsics['242322071433'] = extrinsics_3
-	extrinsics['827312072396'] = extrinsics_3
 
 	vis_node = VisionNode(camera_list,
 						  display_camera=display_camera,
@@ -495,28 +484,30 @@ def main():
 	# ee_to_camera = np.array([69.54,-38.72,87.53,0.,0.,np.pi/2])
 	# ee_to_camera = vec2SE3(ee_to_camera)
 
-	vis_node = create_vision_node(load_owl=False)
+	vis_node = create_vision_node(display_camera=True, load_owl=True)
 	# # vis_node.query_intrinsics()
 	
-	# time.sleep(3)
-	# cam = 0
-	# obj_label = "Microwave"
-	# # # fixed_cam = 0
-	# # # corners, ids = vis_node.detect_aruco(fixed_cam)
-	# # # pose = vis_node.update_camera_extrinsics_from_marker(fixed_cam,ids[0])
-	# # # print(vis_node.OWL.inference(vis_node.color_images[cam], [obj_label]))
+	time.sleep(3)
+	cam = 0
+	obj_label = "drawer"
+	# # # # fixed_cam = 0
+	# # # # corners, ids = vis_node.detect_aruco(fixed_cam)
+	# # # # pose = vis_node.update_camera_extrinsics_from_marker(fixed_cam,ids[0])
+	# # # # print(vis_node.OWL.inference(vis_node.color_images[cam], [obj_label]))
 	# try:
 	# 	fig = plt.figure(figsize=(10,10))
 	# 	while True:
-	# 		# _ = input("Press enter to get object mask for {}\n".format(obj_label))
-	# 		mask  = vis_node.get_obj_mask(cam,obj_label)
-	# 		# mask = vis_node.get_obj_in_obj(cam,obj_label,"white cutting board")
-	# 		image = vis_node.get_rgb_image(cam)
-	# 		mask_im = np.zeros(image.shape,dtype=np.uint8)
-	# 		mask_im[:,:,2] = 255
-	# 		mask_im = cv2.bitwise_and(mask_im,mask_im,mask=mask.astype(np.uint8))
-	# 		alpha = .7
-	# 		disp_im = cv2.addWeighted(image, alpha , mask_im, 1-alpha, 0)
+	_ = input("Press enter to get object mask for {}\n".format(obj_label))
+	mask  = vis_node.get_obj_mask(cam,obj_label)
+	# mask = vis_node.get_obj_in_obj(cam,obj_label,"white cutting board")
+	image = vis_node.get_rgb_image(cam).copy()
+	mask_im = np.zeros(image.shape,dtype=np.uint8)
+	mask_im[:,:,2] = 255
+	mask_im = cv2.bitwise_and(mask_im,mask_im,mask=mask.astype(np.uint8))
+	alpha = .7
+	disp_im = cv2.addWeighted(image, alpha , mask_im, 1-alpha, 0)
+	plt.imshow(disp_im)
+	plt.show()
 	# 		plt.clf()
 	# 		plt.imshow(disp_im)
 	# 		plt.draw()
