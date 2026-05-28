@@ -93,24 +93,24 @@ class FrankaClientController:
         }
         self.send_command(command)
     
-    def close_gripper(self, speed=0.05, force=0.1):
+    def close_gripper(self, speed=0.05, force=0.05):
         command = {
             'function': 'close_gripper',
             'val': [speed, force]
         }
         self.send_command(command)
     
-    def open_gripper(self, speed=0.05, force=0.1):
+    def open_gripper(self, speed=0.05, force=0.05):
         command = {
             'function': 'open_gripper',
             'val': [speed, force]
         }
         self.send_command(command)
 
-    def go_home(self, droid_home = False):
+    def go_home(self, droid_home = False, open_gripper = True):
         command = {
             'function': 'go_home',
-            'val': droid_home
+            'val': [droid_home, open_gripper]
         }
         self.send_command(command)
 

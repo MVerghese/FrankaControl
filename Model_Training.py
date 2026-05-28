@@ -628,7 +628,7 @@ def get_success_and_fail_examples(env: gym.Env, agent_checkpoint: str, save_path
 
 
 def main():
-	base_policy_checkpoint = "/home/mverghese/franka_control/wipe_counter_10_alt/dp_model_epoch_500.pth"
+	base_policy_checkpoint = "/home/mverghese/franka_control/fold_cloth_20/dp_model_final.pth"
 	# base_policy_checkpoint = "/home/mverghese/franka_control/open_microwave_10/dp_model_epoch_1000.pth"
 	# env = make_env(base_policy_checkpoint, reward_mode='sparse', obs_encoder="dinov2_vits14", episode_timeout=200, reset_wait=4)
 	env = make_env(base_policy_checkpoint, reward_mode='sparse', obs_encoder="dinov2_vits14", episode_timeout=200, reset_wait=2)

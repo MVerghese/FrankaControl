@@ -72,7 +72,7 @@ class FrankaServerController:
             self.robot.update_desired_ee_pose(position=pose[:3], orientation=pose[3:7])
         except grpc.RpcError as e:
             print(f"gRPC error when updating desired ee pose: {e}")
-        self.gripper.goto(width=gripper_width, speed=0.05, force=0.1)
+        self.gripper.goto(width=gripper_width, speed=0.05, force=0.05)
 
     def move_to_relative_pose(self, pose):
         '''Note: the gripper width is still an absolute value even in the relative pose command'''
@@ -97,7 +97,7 @@ class FrankaServerController:
             self.robot.update_desired_ee_pose(position=new_pos, orientation=new_quat)
         except grpc.RpcError as e:
             print(f"gRPC error when updating desired ee pose: {e}")
-        self.gripper.goto(width=gripper_width, speed=0.05, force=0.1)
+        self.gripper.goto(width=gripper_width, speed=0.05, force=0.05)
     
     def move_to_absolute_joint_pose(self, pose):
         if not self.robot.is_running_policy():
@@ -111,7 +111,7 @@ class FrankaServerController:
             self.robot.update_desired_joint_positions(positions=joint_positions)
         except grpc.RpcError as e:
             print(f"gRPC error when updating desired joint positions: {e}")
-        self.gripper.goto(width=gripper_width, speed=0.05, force=0.1)
+        self.gripper.goto(width=gripper_width, speed=0.05, force=0.05)
     
     def move_to_relative_joint_pose(self, pose):
         if not self.robot.is_running_policy():
@@ -126,14 +126,16 @@ class FrankaServerController:
             self.robot.update_desired_joint_positions(positions=new_joint_positions)
         except grpc.RpcError as e:
             print(f"gRPC error when updating desired joint positions: {e}")
-        self.gripper.goto(width=gripper_width, speed=0.05, force=0.1)
+        self.gripper.goto(width=gripper_width, speed=0.05, force=0.05)
 
 
-    def go_home(self, droid_home = False):
+    def go_home(self, droid_home = False, open_gripper = True):
         if self.robot.is_running_policy():
             self.robot.terminate_current_policy()
         time.sleep(1.0)
-        self.open_gripper(None)
+        print(f"Going home with droid_home: {droid_home} and open_gripper: {open_gripper}")
+        if open_gripper:
+            self.open_gripper(None)
         if droid_home:
             self.robot.move_to_joint_positions(positions=self.droid_home_positions)
         else:
@@ -142,7 +144,7 @@ class FrankaServerController:
 
     def close_gripper(self, vals):
         speed = 0.05
-        force = 0.1
+        force = 0.05
         if vals is not None:
             speed = vals[0]
             force = vals[1]
@@ -150,7 +152,7 @@ class FrankaServerController:
     
     def open_gripper(self, vals):
         speed = 0.05
-        force = 0.1
+        force = 0.05
         if vals is not None:
             speed = vals[0]
             force = vals[1]
@@ -183,7 +185,13 @@ class FrankaServerController:
                 elif function == 'open_gripper':
                     self.open_gripper(val)
                 elif function == "go_home":
-                    self.go_home(droid_home=val)
+                    if len(val) == 1:
+                        val = (val[0], True)
+                    elif len(val) == 2:
+                        val = (val[0], val[1])
+                    else:
+                        raise ValueError(f"Invalid value for go_home: {val}")
+                    self.go_home(droid_home=val[0], open_gripper=val[1])
                 elif function == 'null_command':
                     self.null_command()
                 elif function == 'shutdown':

@@ -41,6 +41,7 @@ def run_data_collection(env,device_parser):
 	step_count = 0
 	while not done:
 		action, nonzero_input = device_parser.get_control()
+		print(f"Action: {action}, Nonzero input: {nonzero_input}")
 		if not nonzero_input:
 			time.sleep(0.1)
 			continue  # Skip if no input
@@ -100,8 +101,59 @@ def collect_demo_dataset(save_location, num_episodes=5, overwrite = False, episo
 	finally:
 		env.close()
 
+def collect_paired_demo_dataset(save_location_1, save_location_2, num_episodes=5, overwrite=False, episode_timeout=200, reset_wait=0, reset_gui=False):
+	os.makedirs(os.path.dirname(save_location_1), exist_ok=True)
+	os.makedirs(os.path.dirname(save_location_2), exist_ok=True)
+
+	start_episode = 0
+	episode_counters = [0, 0]
+	if not overwrite:
+		existing_files_1 = [f for f in os.listdir(save_location_1) if f.endswith(".npz") and f.startswith("demo_")]
+		existing_files_2 = [f for f in os.listdir(save_location_2) if f.endswith(".npz") and f.startswith("demo_")]
+		total_existing = len(existing_files_1) + len(existing_files_2)
+		print(f"Found {len(existing_files_1)} existing demo files in {save_location_1}")
+		print(f"Found {len(existing_files_2)} existing demo files in {save_location_2}")
+		if len(existing_files_1) > 0:
+			episode_counters[0] = max(int(f.split('_')[-1].split('.')[0]) for f in existing_files_1) + 1
+		if len(existing_files_2) > 0:
+			episode_counters[1] = max(int(f.split('_')[-1].split('.')[0]) for f in existing_files_2) + 1
+		start_episode = total_existing
+		if start_episode > 0:
+			print(f"Resuming from episode {start_episode} (folder 1 at demo_{episode_counters[0]}, folder 2 at demo_{episode_counters[1]})")
+	env = Franka_Gym_Environment.FrankaGymEnvironment(load_vision_node=True, use_gui=True, episode_timeout=episode_timeout, reset_wait=reset_wait, wait_for_gui_reset=reset_gui, open_gripper_on_reset=False)
+	device_parser = InputDeviceParser()
+	save_locations = [save_location_1, save_location_2]
+	try:
+		saving = False
+		for episode in range(start_episode, num_episodes):
+			folder_idx = episode % 2
+			save_location = save_locations[folder_idx]
+			episode_number = episode_counters[folder_idx]
+			print(f"Starting episode {episode+1}/{num_episodes} (saving to {save_location} as demo_{episode_number})")
+			episode_data = run_data_collection(env, device_parser)
+			unzipped_data = list(zip(*episode_data))
+			observations, actions, rewards, next_observations, dones = unzipped_data
+			if not reset_gui:
+				env.reset()
+			if saving:
+				save_thread.join()
+				saving = False
+			save_thread = save_data_threaded(episode_data, episode_number, save_location)
+			episode_counters[folder_idx] += 1
+			saving = True
+		if saving:
+			save_thread.join()
+	except KeyboardInterrupt:
+		print("Data collection interrupted by user.")
+	finally:
+		env.close()
+
 def main():
-	collect_demo_dataset(save_location="./Test/", num_episodes=21, overwrite=False, episode_timeout=200, reset_wait=2, reset_gui=True)
+	collect_demo_dataset(save_location="./Test/", num_episodes=40, overwrite=False, episode_timeout=200, reset_wait=2, reset_gui=False)
+	# collect_paired_demo_dataset(save_location_1="./Demos/Pickup_Banana/", save_location_2="./Demos/Put_Banana_Drawer/", num_episodes=40, overwrite=False, episode_timeout=200, reset_wait=1, reset_gui=False)
+	# collect_paired_demo_dataset(save_location_1="./Demos/test_1/", save_location_2="./Demos/test_2/", num_episodes=40, overwrite=False, episode_timeout=200, reset_wait=1, reset_gui=False)
+
+
 
 if __name__ == "__main__":
 	main()

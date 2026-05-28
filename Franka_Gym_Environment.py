@@ -174,7 +174,7 @@ class ReplayFrankaGymEnvironment(gym.Env):
         return obs, reward, done, False, {}
 
 class FrankaGymEnvironment(gym.Env):
-    def __init__(self, profile = "cartesian", render_mode=None, load_vision_node=True, use_gui=False, episode_timeout=200, reset_wait=0, rotation_max = 0.25*np.pi, wait_for_gui_reset=False):
+    def __init__(self, profile = "cartesian", render_mode=None, load_vision_node=True, use_gui=False, episode_timeout=200, reset_wait=0, rotation_max = 0.25*np.pi, wait_for_gui_reset=False, open_gripper_on_reset=True, load_owl = False):
         super(FrankaGymEnvironment, self).__init__()
         self.client_controller = FrankaClientController()
         assert profile in ["cartesian", "droid"], f"Invalid profile: {profile}"
@@ -201,7 +201,7 @@ class FrankaGymEnvironment(gym.Env):
             self.action_scale = np.array([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.04])  # Scale for joint positions (rad), gripper width (m) (The droid dataset environment scales joint deltas to be in the range -.2 to .2)
             self.action_shift = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.04])  # Shift for joint positions to be in [-1, 1], shift for gripper width to be in [0, 0.08]
         if load_vision_node:
-            self.vision_node = VisionNode.create_vision_node()
+            self.vision_node = VisionNode.create_vision_node(load_owl=load_owl)
             time.sleep(1)
         else:
             self.vision_node = DummyVisionNode.create_vision_node()
@@ -218,12 +218,15 @@ class FrankaGymEnvironment(gym.Env):
         if use_gui:
             self.gui_thread = threading.Thread(target=run_gui, args=(self,))
             self.gui_thread.start()
+        self.open_gripper_on_reset = open_gripper_on_reset
 
     def _get_obs(self):
         pos, quat, joint_positions, joint_velocities, gripper_width = self.client_controller.get_state()
         pos, quat = np.array(pos), np.array(quat)
         rgb_images, _ = self.vision_node.get_camera_images()
         rgb_images = [img.astype(np.uint8) for img in rgb_images]
+        
+
         # rgb_images = (np.zeros((480,640,3),dtype=np.uint8), np.zeros((480,640,3),dtype=np.uint8))  # Dummy images for faster testing
         if self.profile == "cartesian":
             return {
@@ -264,9 +267,10 @@ class FrankaGymEnvironment(gym.Env):
         self.terminated = False
         self.terminated_success = False
         self.reset_ready = False
-        self.client_controller.open_gripper()
-        _ = self._get_obs()
-        self.client_controller.go_home(droid_home=self.profile == "droid")
+        if self.open_gripper_on_reset:
+            self.client_controller.open_gripper()
+            _ = self._get_obs()
+        self.client_controller.go_home(droid_home=self.profile == "droid", open_gripper=self.open_gripper_on_reset)
         _ = self._get_obs()
         if not self.wait_for_gui_reset:
             time.sleep(self.reset_wait)
@@ -338,12 +342,12 @@ def safety_test():
 if __name__ == "__main__":
     # safety_test()
     # import sys; sys.exit()
-    env = FrankaGymEnvironment(profile="droid", load_vision_node=True, use_gui=True)
+    env = FrankaGymEnvironment(profile="cartesian", load_vision_node=True, use_gui=True)
     obs, info = env.reset()
     done = False
     try:
         while not done:
-            action = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])  # Replace with your action selection logic
+            action = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0])  # Replace with your action selection logic
             obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
             print(obs["pose"], done)

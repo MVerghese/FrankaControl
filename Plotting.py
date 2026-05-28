@@ -2,7 +2,7 @@ from matplotlib import pyplot as plt
 import json
 import numpy as np
 import matplotlib.font_manager as font_manager
-from typing import Dict
+from typing import Dict, List, Optional
 import os
 
 
@@ -108,8 +108,11 @@ def plot_reward_and_value(mpr_path, vip_path, plot_name: str, smooth_values = Fa
             plt.savefig(save_path.replace(".png", ".pdf"), bbox_inches='tight')
     plt.close()
 
-def plot_rl_success_rates(runs_folder: str, task_name: str, save_path: str = "", base_policy_success: float = 0.45, averaging_window: int = 20, num_episodes: int = 100):
+def plot_rl_success_rates(runs_folder: str, task_name: str, save_path: str = "", base_policy_success: float = 0.45, averaging_window: int = 20, num_episodes: int = 100, plot_only: Optional[List[str]] = None):
     methods = os.listdir(runs_folder)
+    if plot_only is not None:
+        allowed = set(plot_only)
+        methods = [m for m in methods if m in allowed]
     method_dict = {}
     for method in methods:
         runs = os.listdir(os.path.join(runs_folder, method))
@@ -165,7 +168,7 @@ def plot_rl_success_rates(runs_folder: str, task_name: str, save_path: str = "",
     plt.close()
 
 def main():
-    plot_successes("/home/mverghese/franka_control/runs/wipe_counter/VIP/wipe counter__reward_mode_VIP_offline_ratio_0.5_seed_0/successes.json")
+    # plot_successes("/home/mverghese/franka_control/runs/wipe_counter/VIP/wipe counter__reward_mode_VIP_offline_ratio_0.5_seed_0/successes.json")
     # mpr_path = "/home/mverghese/franka_control/MPR_Seed_1_Examples/fail/demo_3_MPR_rewards_values.npz"
     # vip_path = "/home/mverghese/franka_control/MPR_Seed_1_Examples/fail/demo_3_VIP_rewards_values.npz"
     # plot_reward_and_value(mpr_path, vip_path)
@@ -179,8 +182,10 @@ def main():
     # vip_path = "/home/mverghese/franka_control/MPR_Seed_1_Examples/success/demo_2_VIP_rewards_values.npz"
     # plot_reward_and_value(mpr_path, vip_path, "Successful Episode", smooth_values=True, save_path="demo_2_success_rewards_values.png")
 
-    runs_folder = "/home/mverghese/franka_control/runs/wipe_counter"
-    plot_rl_success_rates(runs_folder, "Real World Wipe Counter", save_path="wipe_counter_success_rates.png", base_policy_success=0.40, averaging_window=20, num_episodes=100)
+    runs_folder = "/home/mverghese/franka_control/runs/open_microwave"
+    plot_rl_success_rates(runs_folder, "Real World Open Microwave", save_path="open_microwave_success_rates_MPR.png", base_policy_success=0.45, averaging_window=20, num_episodes=100, plot_only=["MPR"])
+    plot_rl_success_rates(runs_folder, "Real World Open Microwave", save_path="open_microwave_success_rates_VIP.png", base_policy_success=0.45, averaging_window=20, num_episodes=100, plot_only=["VIP"])
+
 
 if __name__ == "__main__":
     main()

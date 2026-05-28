@@ -48,12 +48,23 @@ def get_position_magnitudes(episode_folder):
 
 
 
+def convert_folder_to_videos(folder, fps=30):
+    npz_files = sorted([f for f in os.listdir(folder) if f.endswith('.npz')])
+    for npz_file in npz_files:
+        episode_path = os.path.join(folder, npz_file)
+        video_path = os.path.join(folder, npz_file.replace('.npz', '_video.mp4'))
+        print(f"Converting {npz_file} -> {os.path.basename(video_path)}")
+        frames = unpack_episode_video(episode_path)
+        save_video(frames, video_path, fps=fps)
+    print(f"Done. Converted {len(npz_files)} episodes.")
+
+
 def main():
-    episode_file = "/home/mverghese/franka_control/wipe_counter_10_alt/demo_0.npz"
+    # episode_file = "/home/mverghese/franka_control/wipe_counter_10_alt/demo_0.npz"
     # output_video_file = "/home/mverghese/franka_control/Wipe_Counter/demo_1_video.mp4"
 
-    frames = unpack_episode_video(episode_file)
-    cv2.imwrite("/home/mverghese/franka_control/wipe_counter_10_alt//VIP_Goal_Frame.png", frames[-1])
+    # frames = unpack_episode_video(episode_file)
+    # cv2.imwrite("/home/mverghese/franka_control/wipe_counter_10_alt//VIP_Goal_Frame.png", frames[-1])
     # save_video(frames, output_video_file, fps=30)
     # print(f"Video saved to {output_video_file}")
     # angle_magnitudes = sample_random_angles()
@@ -68,6 +79,8 @@ def main():
     # plt.hist(angle_magnitudes, bins=30)
     # plt.xlabel("Position Magnitude (meters)")
     # plt.show()
+
+    convert_folder_to_videos("/home/mverghese/franka_control/fold_cloth_10")
 
 if __name__ == "__main__":
     main()

@@ -119,7 +119,7 @@ class VisionNode:
 
 		if load_OWL:
 			from OWL import OWLDetector
-			self.OWL = OWLDetector(sam_checkpoint="/home/mverghese/sam2/checkpoints/sam2.1_hiera_large.pt", device="cuda:1")
+			self.OWL = OWLDetector(sam_checkpoint="/home/mverghese/sam2/checkpoints/sam2.1_hiera_large.pt", device="cuda:0")
 		else:
 			self.OWL = None
 
@@ -160,7 +160,8 @@ class VisionNode:
 	
 	def save_frames(self):
 		for i in range(len(self.color_images)):
-			cv2.imwrite(os.path.join(self.save_path,"color_image_"+str(i).zfill(2)+"_"+str(self.save_counter).zfill(4)+".png"),self.color_images[i])
+			bgr = cv2.cvtColor(self.color_images[i], cv2.COLOR_RGB2BGR)
+			cv2.imwrite(os.path.join(self.save_path,"color_image_"+str(i).zfill(2)+"_"+str(self.save_counter).zfill(4)+".png"),bgr)
 		self.save_counter += 1
 
 	def start_recording(self,cameras):
@@ -266,7 +267,7 @@ class VisionNode:
 			frameset = self.aligns[i].process(frames)
 			aligned_depth_frame = frameset.get_depth_frame()
 			aligned_depth_image = np.asanyarray(aligned_depth_frame.get_data())
-			# print(f"Color frame diff {np.mean(np.abs(color_image.astype(np.float32) - self.color_images[i].astype(np.float32))) if self.color_images[i] is not None else -1}")
+			color_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2RGB)
 			self.color_images[i] = color_image
 			self.depth_images[i] = aligned_depth_image
 			if self.camera_rotations[i] != None:
@@ -278,8 +279,8 @@ class VisionNode:
 				self.depth_colormaps[i] = depth_colormap
 			
 			if self.recording[i]:
-				color_image = self.color_images[i]
-				encoded_im = cv2.imencode('.png', color_image)[1]
+				bgr = cv2.cvtColor(self.color_images[i], cv2.COLOR_RGB2BGR)
+				encoded_im = cv2.imencode('.png', bgr)[1]
 				self.recording_buffer[i].append(encoded_im)
 		self._mutex.release()
 		if np.any(self.recording):
@@ -297,8 +298,8 @@ class VisionNode:
 	def render_camera_views(self):
 		cols = []
 		for cam in range(self.num_cams):
-			# print(self.color_images[cam].shape, self.depth_colormaps[cam].shape)
-			cols.append(np.vstack((self.color_images[cam], self.depth_colormaps[cam])))
+			bgr = cv2.cvtColor(self.color_images[cam], cv2.COLOR_RGB2BGR)
+			cols.append(np.vstack((bgr, self.depth_colormaps[cam])))
 		images = np.hstack(cols)
 		# print(images.shape,images.dtype)
 		cv2.namedWindow('RealSense', cv2.WINDOW_NORMAL)
@@ -317,7 +318,7 @@ class VisionNode:
 	
 	def get_rgb_image(self,cam):
 		image = self.color_images[cam]
-		image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+		# image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 		return(image)
 		
 
@@ -334,7 +335,7 @@ class VisionNode:
 	def get_point_cloud(self,cam,depth_max = 1000, depth_min = 200):
 		depth_image = self.depth_images[cam]
 
-		color_image = cv2.cvtColor(self.color_images[cam],cv2.COLOR_BGR2RGB)
+		color_image = self.color_images[cam]
 		u = np.arange(depth_image.shape[0])
 		v = np.arange(depth_image.shape[1])
 		uu,vv = np.meshgrid(u,v)
@@ -354,14 +355,14 @@ class VisionNode:
 			if timeout_counter > 50:
 				print("Detect Aruco timed out while waiting for an image")
 				return(None, None)
-		gray = cv2.cvtColor(self.color_images[cam],cv2.COLOR_BGR2GRAY)
+		gray = cv2.cvtColor(self.color_images[cam],cv2.COLOR_RGB2GRAY)
 		corners, ids, _ = self.aruco_detector.detectMarkers(gray)
 		return(corners,ids)
 
 	def compute_marker_pose(self,cam,marker_id, marker_size = 100):
 		corners, ids = self.detect_aruco(cam)
 		if marker_id not in ids:
-			return(None)
+			return(None, None, None)
 		idx = np.where(ids == marker_id)[0][0]
 		corners = corners[idx]
 		obj_points = np.array([[-marker_size / 2, marker_size / 2, 0],
@@ -415,8 +416,7 @@ class VisionNode:
 		pixels = [pixel for pixel in pixels if depth_image[pixel[0],pixel[1]] < depth_max and depth_image[pixel[0],pixel[1]] > depth_min]
 		pixels = np.array(pixels)
 		points = batch_coords(self.intrinsics[cam],pixels,self.depth_images[cam])
-		color_image = cv2.cvtColor(self.color_images[cam], cv2.COLOR_BGR2RGB)
-		colors = color_image[pixels[:,0],pixels[:,1]]
+		colors = self.color_images[cam][pixels[:,0],pixels[:,1]]
 		return(points, colors)
 	
 	def get_obj_pointcloud(self,cam,obj_label, pad_object = False, pad_size = 5, parent_obj_label = None):
@@ -433,8 +433,8 @@ class VisionNode:
 
 def create_vision_node(display_camera = False,load_owl = False):
 	camera_list = ['152122075524','827312070621']
-	# camera_list = ['242522072314']
-	# camera_list = ['152122075524','947522071685']
+	# camera_list = ['152122075524']
+	# camera_list = ['152122075524','242322071433']
 
 	# camera_list = ['746612070227','827312072396']
 	# camera_list = ['827312070621','827312072396']
@@ -498,16 +498,20 @@ def main():
 	# 	fig = plt.figure(figsize=(10,10))
 	# 	while True:
 	_ = input("Press enter to get object mask for {}\n".format(obj_label))
-	mask  = vis_node.get_obj_mask(cam,obj_label)
+	# mask  = vis_node.get_obj_mask(cam,obj_label)
 	# mask = vis_node.get_obj_in_obj(cam,obj_label,"white cutting board")
-	image = vis_node.get_rgb_image(cam).copy()
-	mask_im = np.zeros(image.shape,dtype=np.uint8)
-	mask_im[:,:,2] = 255
-	mask_im = cv2.bitwise_and(mask_im,mask_im,mask=mask.astype(np.uint8))
-	alpha = .7
-	disp_im = cv2.addWeighted(image, alpha , mask_im, 1-alpha, 0)
-	plt.imshow(disp_im)
-	plt.show()
+
+	images, _ = vis_node.get_camera_images()
+	cv2.imwrite("Workspace_Drawer.png",cv2.cvtColor(images[0],cv2.COLOR_BGR2RGB))
+	# plt.imshow(images[0])
+	# plt.show()
+	# mask_im = np.zeros(image.shape,dtype=np.uint8)
+	# mask_im[:,:,2] = 255
+	# mask_im = cv2.bitwise_and(mask_im,mask_im,mask=mask.astype(np.uint8))
+	# alpha = .7
+	# disp_im = cv2.addWeighted(image, alpha , mask_im, 1-alpha, 0)
+	# plt.imshow(disp_im)
+	# plt.show()
 	# 		plt.clf()
 	# 		plt.imshow(disp_im)
 	# 		plt.draw()
